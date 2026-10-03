@@ -1,39 +1,40 @@
-# Dashboard Drive — Demo Multi-Akun
+# Dashboard Drive — Multi-Akun Google Drive
 
-Dashboard web yang menggabungkan beberapa akun Google Drive gratis ke dalam **satu tampilan** — tanpa perlu pindah-pindah akun.
+Satu dashboard web untuk **semua akun Google Drive**-mu: lihat, cari, upload, unduh, ganti nama, beri bintang, hapus, dan pindahkan file **antar akun** — tanpa pindah-pindah akun. Kuota tiap akun tetap dihitung masing-masing (aturan Google), tapi semuanya bisa dikelola dari satu tampilan.
 
-> **Status: Mode Demo.** Aplikasi ini berjalan dengan data contoh di memori browser (lihat `app.js` → `DEMO_ACCOUNTS` / `DEMO_FILES`). Belum tersambung ke Google Drive API sungguhan.
-
-## Fitur demo
-
-- Tampilan gabungan file dari 2 akun (badge akun di tiap file)
-- Ringkasan kuota gabungan (2 × 15 GB) + bar kuota per akun
-- Cari lintas akun, filter per akun, urutkan (nama/tanggal/ukuran)
-- Tampilan grid & daftar, breadcrumb navigasi folder
-- Detail file, tandai bintang, ganti nama
-- Upload (simulasi progress) — otomatis ke akun yang ruangnya paling lega, atau ke akun yang sedang difilter
-- Pindah file antar akun (simulasi, kuota ikut pindah)
-- Sampah: hapus, pulihkan, hapus permanen, kosongkan
-- Aktivitas terakhir, drag & drop upload, responsif untuk HP
+Situs statis murni (HTML + CSS + JS, tanpa build step). Seluruh logika berjalan di browser: token OAuth hanya disimpan di memori browser dan request langsung ke `googleapis.com` — tidak ada server perantara.
 
 ## Deploy ke Vercel
 
-Repo ini situs statis murni (HTML + CSS + JS, tanpa build step):
+1. Buka [vercel.com/new](https://vercel.com/new) → **Import** repo ini
+2. Framework Preset: **Other** · Build Command: kosongkan
+3. **Deploy** — `index.html` langsung jadi halaman utama
 
-1. Buka [vercel.com/new](https://vercel.com/new) → **Import** repo `drive`
-2. Framework Preset: **Other**
-3. Build Command: kosongkan · Output Directory: `./` (atau biarkan default)
-4. **Deploy** — `index.html` langsung jadi halaman utama
+## Setup sekali saja (5 menit)
 
-## Menuju versi produksi (Google Drive API asli)
+Buka situs hasil deploy, kamu akan dipandu memasukkan **OAuth Client ID**:
 
-1. Buat project di [Google Cloud Console](https://console.cloud.google.com), aktifkan **Google Drive API**
-2. Buat **OAuth Client ID** (tipe Web), daftarkan origin (mis. URL Vercel) sebagai *Authorized JavaScript origin*
-3. Login tiap akun via [Google Identity Services](https://developers.google.com/identity) — scope yang disarankan: `https://www.googleapis.com/auth/drive.file` (hanya file buatan aplikasi) atau `.../auth/drive` (akses penuh, perlu verifikasi Google bila publik)
-4. Simpan satu *refresh token* per akun, lalu:
-   - `drive.files.list` per akun → gabungkan hasilnya (inilah yang didemokan UI ini)
-   - `drive.files.create` dengan `uploadType=resumable` untuk upload besar
-   - `drive.files.update({ trashed: true })` / `drive.files.delete` untuk hapus
-5. Titik integrasi sudah ditandai di `app.js` (cari `BACKEND SEAM`)
+1. Buka [Google Cloud Console](https://console.cloud.google.com) → buat project baru → aktifkan **Google Drive API** ([langsung ke halaman API](https://console.cloud.google.com/apis/library/drive.googleapis.com)).
+2. **APIs & Services → Credentials → Create Credentials → OAuth client ID** → tipe **Web application**.
+3. Di **Authorized JavaScript origins**, tambahkan origin situsmu, mis. `https://drive-kamu.vercel.app` (tanpa path). Untuk coba lokal: `http://localhost:3000`.
+4. Di **OAuth consent screen**: pilih **External**, isi nama aplikasi saja (mode *Testing* cukup untuk dipakai sendiri; tambahkan emailmu sebagai *Test user*).
+5. Salin **Client ID** → tempel di halaman setup aplikasi → **Simpan & Lanjutkan**.
+6. Klik **Hubungkan** (di sidebar) → pilih akun Google → **Lanjutan → Buka … (tidak aman)**. Peringatan itu wajar untuk aplikasi mode Testing milik sendiri. Ulangi untuk akun kedua.
 
-Satu Cloud project cukup untuk banyak akun — yang per-akun hanya proses login & izinnya.
+Satu Cloud project cukup untuk banyak akun — yang per-akun hanya proses login & izinnya. Client ID tersimpan di `localStorage` browser; token akses hanya di memori tab (hilang saat tab ditutup, tinggal hubungkan ulang sekali klik).
+
+## Fitur
+
+- Gabungan file lintas akun (badge warna per akun), kuota gabungan + per akun
+- Cari lintas akun, filter per akun, urutkan nama/tanggal/ukuran, grid & daftar
+- Upload (resumable, ada progress) — otomatis ke akun yang ruangnya paling lega, atau ke folder/akun yang sedang dibuka
+- Unduh, buka di Google Drive, ganti nama, bintang, sampah (pulihkan/hapus permanen)
+- **Pindah antar akun**: file diunduh dari akun asal → diunggah ke akun tujuan → dihapus dari asal (folder disalin rekursif)
+- Breadcrumb folder, aktivitas terakhir, drag & drop, tombol sinkron ulang, responsif HP
+- Mode demo (data contoh) tersedia dari layar setup bila ingin pratinjau tanpa login
+
+## Catatan teknis
+
+- Scope: `https://www.googleapis.com/auth/drive` (akses penuh ke file sendiri; perlu karena dashboard menampilkan file yang sudah ada, bukan hanya buatan aplikasi).
+- Token kedaluwarsa tiap ±1 jam; aplikasi mencoba refresh senyap otomatis, bila gagal akun ditandai "sesi berakhir" dan cukup klik Hubungkan lagi.
+- Batas API Google (~12.000 req/menit/project) sangat longgar untuk pemakaian pribadi.
