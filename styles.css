@@ -519,3 +519,11 @@ body.dragging .drop-hint { display: flex; }
 
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---------- Sidebar foot ---------- */
+.sidebar-foot {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+  margin-top: 2px;
+}
+.sidebar-foot .link-btn { display: inline-flex; align-items: center; gap: 6px; }
