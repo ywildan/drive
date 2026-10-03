@@ -830,6 +830,23 @@ async function createFolder() {
   } catch (e) { toast("Gagal membuat folder: " + e.message); }
 }
 
+/* ---------------- Tema gelap/terang ---------------- */
+const ICON_MOON = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13.2A8 8 0 1 1 10.8 4 6.6 6.6 0 0 0 20 13.2z"/></svg>';
+const ICON_SUN = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.3M12 19.2v2.3M2.5 12h2.3M19.2 12h2.3M5 5l1.6 1.6M17.4 17.4 19 19M19 5l-1.6 1.6M6.6 17.4 5 19"/></svg>';
+function syncThemeIcon() {
+  const dark = document.documentElement.dataset.theme === "dark";
+  const b = $("#btnTheme");
+  if (!b) return;
+  b.innerHTML = dark ? ICON_SUN : ICON_MOON;
+  b.title = dark ? "Mode terang" : "Mode gelap";
+}
+function toggleTheme() {
+  const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem("dd_theme", next); } catch (e) {}
+  syncThemeIcon();
+}
+
 /* ---------------- Toast ---------------- */
 function toast(msg, actionLabel, actionFn) {
   const wrap = $("#toasts");
@@ -859,6 +876,7 @@ function bindEvents() {
   $("#sortSelect").addEventListener("change", (e) => { state.sort = e.target.value; renderFiles(); });
   $("#viewGrid").onclick = () => { state.view = "grid"; syncView(); renderFiles(); };
   $("#viewList").onclick = () => { state.view = "list"; syncView(); renderFiles(); };
+  $("#btnTheme").onclick = toggleTheme;
   $("#btnUpload").onclick = () => $("#fileInput").click();
   $("#fileInput").addEventListener("change", (e) => { uploadFiles(e.target.files); e.target.value = ""; });
   $("#btnHideUpload").onclick = () => $("#uploadDock").hidden = true;
@@ -940,6 +958,7 @@ function syncView() {
 
 (function init() {
   bindEvents();
+  syncThemeIcon();
   const existing = $("#clientIdInput");
   if (clientId() && existing) existing.value = clientId();
   if (!clientId()) { showSetup(); return; }  // belum ada Client ID → panduan setup
