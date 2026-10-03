@@ -98,6 +98,13 @@
         <div class="activity-head">Aktivitas</div>
         <div id="activityList" class="activity-list"></div>
       </div>
+
+      <div class="sidebar-foot">
+        <button class="link-btn" id="btnSettings">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.01A1.7 1.7 0 0 0 10 3.09V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.01A1.7 1.7 0 0 0 20.91 10H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg>
+          Pengaturan
+        </button>
+      </div>
     </aside>
     <div class="scrim" id="scrim"></div>
 
@@ -179,6 +186,23 @@
 
   <input type="file" id="fileInput" multiple hidden />
   <div class="toast-wrap" id="toasts" aria-live="polite"></div>
+
+  <!-- Settings modal -->
+  <div class="modal-backdrop" id="settingsModal" hidden>
+    <div class="modal">
+      <h3>Pengaturan</h3>
+      <p style="margin-bottom:6px"><b>OAuth Client ID</b> (tersimpan di browser ini):</p>
+      <div class="setup-form" style="margin-bottom:14px">
+        <input type="text" id="settingsClientId" placeholder="Client ID…" autocomplete="off" spellcheck="false" />
+        <button class="btn-primary" id="btnSaveSettings">Simpan</button>
+      </div>
+      <p>Mengganti Client ID akan memutuskan semua akun terhubung.</p>
+      <div class="modal-actions" style="justify-content:space-between">
+        <button class="btn-danger" id="btnDisconnectAll" style="width:auto">Putuskan semua akun</button>
+        <button class="btn-secondary" id="btnCloseSettings">Tutup</button>
+      </div>
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>
