@@ -4,11 +4,45 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Dashboard Drive — Gabungan Multi-Akun</title>
-  <meta name="description" content="Demo dashboard gabungan Google Drive multi-akun: satu tampilan untuk semua akun." />
+  <meta name="description" content="Satu dashboard untuk semua akun Google Drive: lihat, upload, dan kelola file lintas akun." />
   <link rel="stylesheet" href="styles.css" />
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
-  <div id="app">
+  <!-- ============ SETUP (tampil bila belum ada Client ID) ============ -->
+  <div class="setup" id="setupView" hidden>
+    <div class="setup-card">
+      <div class="brand" style="justify-content:center">
+        <div class="brand-logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="34" height="34"><path fill="#4f46e5" d="M7.5 3 2 12.6 7.5 22h9L22 12.6 16.5 3h-9z"/><path fill="#818cf8" d="M7.5 3 2 12.6l5.5-4.1L16.5 3h-9z"/><path fill="#c7d2fe" d="M16.5 3 22 12.6l-5.4-4.1L7.5 3h9z" opacity=".7"/></svg>
+        </div>
+        <div style="text-align:left">
+          <div class="brand-name" style="font-size:19px">Dashboard Drive</div>
+          <div class="brand-sub">Satu tampilan untuk semua akun Googlemu</div>
+        </div>
+      </div>
+
+      <h2>Hubungkan ke Google Drive asli</h2>
+      <p class="setup-desc">Aplikasi ini berjalan murni di browser — tidak ada server yang menyimpan datamu.
+        Yang dibutuhkan hanya <b>OAuth Client ID</b> dari Google Cloud (gratis, sekali saja):</p>
+      <ol class="setup-steps">
+        <li>Buka <a href="https://console.cloud.google.com/apis/library/drive.googleapis.com" target="_blank" rel="noopener">Google Cloud Console</a> → buat project baru → aktifkan <b>Google Drive API</b>.</li>
+        <li>Buka <b>APIs &amp; Services → Credentials → Create Credentials → OAuth client ID</b> → tipe <b>Web application</b>.</li>
+        <li>Di <b>Authorized JavaScript origins</b> tambahkan origin situs ini (mis. <code>https://drive-kamu.vercel.app</code>). Untuk coba lokal: <code>http://localhost:3000</code>.</li>
+        <li>Di <b>OAuth consent screen</b> isi nama aplikasi saja (mode Testing cukup untuk dipakai sendiri). Saat login nanti pilih <i>Lanjutan → Buka … (tidak aman)</i> — wajar untuk aplikasi testing milik sendiri.</li>
+        <li>Salin <b>Client ID</b>-nya dan tempel di bawah.</li>
+      </ol>
+
+      <div class="setup-form">
+        <input type="text" id="clientIdInput" placeholder="Tempel OAuth Client ID di sini…" autocomplete="off" spellcheck="false" />
+        <button class="btn-primary" id="btnSaveClientId">Simpan &amp; Lanjutkan</button>
+      </div>
+      <p class="setup-note">Client ID tersimpan hanya di browser ini (localStorage). Token login tiap akun juga hanya di memori browser — tidak dikirim ke mana pun selain googleapis.com.</p>
+      <div class="setup-alt">atau <button class="link-btn" id="btnDemoMode">coba mode demo dulu</button></div>
+    </div>
+  </div>
+
+  <div id="app" hidden>
     <!-- ============ SIDEBAR ============ -->
     <aside class="sidebar" id="sidebar">
       <div class="brand">
@@ -17,7 +51,7 @@
         </div>
         <div>
           <div class="brand-name">Dashboard Drive</div>
-          <div class="brand-sub">Multi-akun <span class="demo-badge">Mode Demo</span></div>
+          <div class="brand-sub">Multi-akun <span class="demo-badge" id="modeBadge" hidden>Mode Demo</span></div>
         </div>
       </div>
 
@@ -28,7 +62,7 @@
 
       <nav class="nav">
         <button class="nav-item active" data-nav="drive">
-          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1 2 2H5a2 2 0 0 1-2-2V7z"/></svg>
           Drive Gabungan
         </button>
         <button class="nav-item" data-nav="starred">
@@ -57,7 +91,7 @@
         <div class="storage-title">Penyimpanan gabungan</div>
         <div class="storage-bar"><div class="storage-fill" id="storageFill"></div></div>
         <div class="storage-text" id="storageText"></div>
-        <div class="storage-hint">2 akun × 15 GB paket gratis</div>
+        <div class="storage-hint" id="storageHint"></div>
       </div>
 
       <div class="activity">
@@ -101,6 +135,9 @@
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
             <span class="btn-label">Folder</span>
           </button>
+          <button class="btn-secondary" id="btnRefresh" title="Muat ulang dari Google">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg>
+          </button>
         </div>
       </header>
 
@@ -108,6 +145,13 @@
 
       <div class="drop-hint" id="dropHint">Letakkan file di sini untuk mengunggah</div>
       <div class="file-area" id="fileArea"></div>
+
+      <div class="connect-cta" id="connectCta" hidden>
+        <svg viewBox="0 0 24 24" width="46" height="46" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M12 8v5m0 3.5v.01" stroke-linecap="round"/></svg>
+        <h3>Belum ada akun terhubung</h3>
+        <p>Hubungkan akun Google untuk melihat file Drive aslimu di sini.</p>
+        <button class="btn-primary" id="btnConnectCta">Hubungkan akun Google</button>
+      </div>
     </main>
 
     <!-- ============ DETAIL PANEL ============ -->
@@ -135,18 +179,6 @@
 
   <input type="file" id="fileInput" multiple hidden />
   <div class="toast-wrap" id="toasts" aria-live="polite"></div>
-
-  <!-- Connect modal -->
-  <div class="modal-backdrop" id="connectModal" hidden>
-    <div class="modal">
-      <h3>Hubungkan akun Google</h3>
-      <p>Ini demo statis dengan data contoh — belum tersambung ke Google Drive API sungguhan.</p>
-      <p>Untuk versi produksi, tiap akun login lewat <b>OAuth 2.0</b> (satu Google Cloud project, Drive API aktif). Aplikasi menyimpan satu <i>refresh token</i> per akun, lalu memanggil <code>drive.files.list</code> untuk tiap akun dan menggabungkan hasilnya di satu tampilan seperti ini.</p>
-      <div class="modal-actions">
-        <button class="btn-secondary" id="btnCloseModal">Mengerti</button>
-      </div>
-    </div>
-  </div>
 
   <script src="app.js"></script>
 </body>
