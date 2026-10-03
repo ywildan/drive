@@ -454,3 +454,68 @@ body.dragging .drop-hint { display: flex; }
   .file-area { padding: 10px 14px 90px; }
   .breadcrumb { padding: 11px 16px 2px; }
 }
+
+/* ---------- Setup ---------- */
+.setup {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: radial-gradient(1100px 500px at 50% -10%, #eef0ff 0%, var(--bg) 60%);
+}
+.setup[hidden] { display: none; }
+.setup-card {
+  background: var(--surface);
+  border-radius: 20px;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--line);
+  max-width: 600px;
+  width: 100%;
+  padding: 34px 34px 28px;
+}
+.setup-card h2 { font-size: 20px; margin: 22px 0 8px; letter-spacing: -0.01em; }
+.setup-desc { font-size: 14px; color: var(--ink-soft); line-height: 1.65; margin: 0 0 6px; }
+.setup-steps { font-size: 13.5px; color: var(--ink-soft); line-height: 1.7; padding-left: 20px; margin: 10px 0 18px; }
+.setup-steps li { margin-bottom: 7px; }
+.setup-steps a { color: var(--primary); font-weight: 600; }
+.setup-steps code { background: #f1f2f8; padding: 1px 7px; border-radius: 6px; font-size: 12.5px; color: var(--ink); }
+.setup-form { display: flex; gap: 10px; }
+.setup-form input {
+  flex: 1;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  padding: 11px 14px;
+  font-size: 13.5px;
+  outline: none;
+  min-width: 0;
+}
+.setup-form input:focus { border-color: var(--primary); }
+.setup-note { font-size: 12px; color: var(--ink-faint); line-height: 1.6; margin: 12px 0 0; }
+.setup-alt { text-align: center; margin-top: 16px; font-size: 13px; color: var(--ink-faint); }
+@media (max-width: 560px) {
+  .setup-card { padding: 24px 20px; }
+  .setup-form { flex-direction: column; }
+}
+
+/* ---------- Connect CTA (empty state) ---------- */
+.connect-cta {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+  padding: 30px;
+  color: var(--ink-soft);
+  background: var(--bg);
+}
+.connect-cta[hidden] { display: none; }
+.connect-cta svg { color: var(--ink-faint); margin-bottom: 8px; }
+.connect-cta h3 { margin: 0; font-size: 18px; color: var(--ink); }
+.connect-cta p { margin: 0 0 12px; font-size: 14px; max-width: 380px; }
+
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
