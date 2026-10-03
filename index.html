@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard Drive — Gabungan Multi-Akun</title>
+  <meta name="description" content="Demo dashboard gabungan Google Drive multi-akun: satu tampilan untuk semua akun." />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- ============ SIDEBAR ============ -->
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand-logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="26" height="26"><path fill="#4f46e5" d="M7.5 3 2 12.6 7.5 22h9L22 12.6 16.5 3h-9z"/><path fill="#818cf8" d="M7.5 3 2 12.6l5.5-4.1L16.5 3h-9z"/><path fill="#c7d2fe" d="M16.5 3 22 12.6l-5.5-4.1L7.5 3h9z" opacity=".7"/></svg>
+        </div>
+        <div>
+          <div class="brand-name">Dashboard Drive</div>
+          <div class="brand-sub">Multi-akun <span class="demo-badge">Mode Demo</span></div>
+        </div>
+      </div>
+
+      <button class="btn-primary btn-new" id="btnUpload">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 16V4m0 0 4 4m-4-4L8 8"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+        Upload
+      </button>
+
+      <nav class="nav">
+        <button class="nav-item active" data-nav="drive">
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>
+          Drive Gabungan
+        </button>
+        <button class="nav-item" data-nav="starred">
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 2.7 5.6 6.1.8-4.5 4.2 1.1 6-5.4-3-5.4 3 1.1-6L3.2 9.4l6.1-.8L12 3z"/></svg>
+          Berbintang
+        </button>
+        <button class="nav-item" data-nav="recent">
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
+          Terbaru
+        </button>
+        <button class="nav-item" data-nav="trash">
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m3 0-1 13a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1L6 7"/></svg>
+          Sampah <span class="nav-count" id="trashCount"></span>
+        </button>
+      </nav>
+
+      <div class="accounts">
+        <div class="accounts-head">
+          <span>Akun terhubung</span>
+          <button class="link-btn" id="btnConnect">+ Hubungkan</button>
+        </div>
+        <div id="accountList"></div>
+      </div>
+
+      <div class="storage-card">
+        <div class="storage-title">Penyimpanan gabungan</div>
+        <div class="storage-bar"><div class="storage-fill" id="storageFill"></div></div>
+        <div class="storage-text" id="storageText"></div>
+        <div class="storage-hint">2 akun × 15 GB paket gratis</div>
+      </div>
+
+      <div class="activity">
+        <div class="activity-head">Aktivitas</div>
+        <div id="activityList" class="activity-list"></div>
+      </div>
+    </aside>
+    <div class="scrim" id="scrim"></div>
+
+    <!-- ============ MAIN ============ -->
+    <main class="main">
+      <header class="toolbar">
+        <button class="icon-btn menu-btn" id="btnMenu" aria-label="Menu">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </button>
+        <div class="search">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input type="text" id="searchInput" placeholder="Cari di semua akun…" autocomplete="off" />
+        </div>
+        <div class="toolbar-actions">
+          <select id="accountFilter" class="select" title="Filter akun">
+            <option value="all">Semua akun</option>
+          </select>
+          <select id="sortSelect" class="select" title="Urutkan">
+            <option value="name-asc">Nama A–Z</option>
+            <option value="name-desc">Nama Z–A</option>
+            <option value="modified-desc">Terbaru diubah</option>
+            <option value="modified-asc">Terlama diubah</option>
+            <option value="size-desc">Terbesar</option>
+            <option value="size-asc">Terkecil</option>
+          </select>
+          <div class="view-toggle" role="group" aria-label="Tampilan">
+            <button id="viewGrid" class="icon-btn active" title="Grid">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>
+            </button>
+            <button id="viewList" class="icon-btn" title="Daftar">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="4.5" cy="6" r="1.2" fill="currentColor" stroke="none"/><circle cx="4.5" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="4.5" cy="18" r="1.2" fill="currentColor" stroke="none"/></svg>
+            </button>
+          </div>
+          <button class="btn-secondary" id="btnNewFolder">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            <span class="btn-label">Folder</span>
+          </button>
+        </div>
+      </header>
+
+      <nav class="breadcrumb" id="breadcrumb"></nav>
+
+      <div class="drop-hint" id="dropHint">Letakkan file di sini untuk mengunggah</div>
+      <div class="file-area" id="fileArea"></div>
+    </main>
+
+    <!-- ============ DETAIL PANEL ============ -->
+    <aside class="detail" id="detailPanel" aria-hidden="true">
+      <div class="detail-head">
+        <span>Detail</span>
+        <button class="icon-btn" id="btnCloseDetail" aria-label="Tutup">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+      </div>
+      <div id="detailBody"></div>
+    </aside>
+  </div>
+
+  <!-- Upload progress -->
+  <div class="upload-dock" id="uploadDock" hidden>
+    <div class="upload-dock-head">
+      <span id="uploadTitle">Mengunggah…</span>
+      <button class="icon-btn" id="btnHideUpload" aria-label="Sembunyikan">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+    </div>
+    <div id="uploadItems"></div>
+  </div>
+
+  <input type="file" id="fileInput" multiple hidden />
+  <div class="toast-wrap" id="toasts" aria-live="polite"></div>
+
+  <!-- Connect modal -->
+  <div class="modal-backdrop" id="connectModal" hidden>
+    <div class="modal">
+      <h3>Hubungkan akun Google</h3>
+      <p>Ini demo statis dengan data contoh — belum tersambung ke Google Drive API sungguhan.</p>
+      <p>Untuk versi produksi, tiap akun login lewat <b>OAuth 2.0</b> (satu Google Cloud project, Drive API aktif). Aplikasi menyimpan satu <i>refresh token</i> per akun, lalu memanggil <code>drive.files.list</code> untuk tiap akun dan menggabungkan hasilnya di satu tampilan seperti ini.</p>
+      <div class="modal-actions">
+        <button class="btn-secondary" id="btnCloseModal">Mengerti</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
