@@ -875,6 +875,37 @@ function bindEvents() {
   });
   $("#btnConnect").onclick = connectAccount;
   $("#btnConnectCta").onclick = connectAccount;
+
+  const settingsModal = $("#settingsModal");
+  $("#btnSettings").onclick = () => {
+    $("#settingsClientId").value = clientId();
+    settingsModal.hidden = false;
+  };
+  $("#btnCloseSettings").onclick = () => settingsModal.hidden = true;
+  settingsModal.addEventListener("click", (e) => {
+    if (e.target === settingsModal) settingsModal.hidden = true;
+  });
+  $("#btnSaveSettings").onclick = () => {
+    const v = $("#settingsClientId").value.trim();
+    if (!v) { toast("Client ID tidak boleh kosong."); return; }
+    localStorage.setItem("dd_client_id", v);
+    tokenClient = null;
+    state.sessions.clear();
+    state.files = [];
+    state.selectedId = null;
+    settingsModal.hidden = true;
+    toast("Client ID diperbarui. Hubungkan ulang akun-akunmu.");
+    logActivity("Mengganti OAuth Client ID");
+    render();
+  };
+  $("#btnDisconnectAll").onclick = () => {
+    state.sessions.clear();
+    state.files = [];
+    state.selectedId = null;
+    settingsModal.hidden = true;
+    toast("Semua akun diputuskan.");
+    render();
+  };
   $("#btnMenu").onclick = () => document.body.classList.toggle("nav-open");
   $("#scrim").onclick = () => document.body.classList.remove("nav-open");
 
