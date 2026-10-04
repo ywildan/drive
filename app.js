@@ -296,17 +296,25 @@ async function driveFetch(session, path, options = {}, retried = false) {
   if (!res.ok) throw new Error(data.error?.message || ("Drive API error " + res.status));
   return data;
 }
-function normFile(d, email) {
+function normFile(d, email, realRootId) {
+  const pid = (d.parents && d.parents[0]) || "root";
   return {
     id: d.id, name: d.name, isFolder: d.mimeType === FOLDER_MIME, mimeType: d.mimeType,
     size: Number(d.size || 0), modified: new Date(d.modifiedTime).getTime(),
     starred: !!d.starred, trashed: false,
-    parentId: (d.parents && d.parents[0]) || "root",
+    // API mengembalikan ID opaque untuk folder root — petakan ke "root"
+    parentId: pid === realRootId ? "root" : pid,
     accountEmail: email, webViewLink: d.webViewLink || "",
   };
 }
 async function syncSession(session) {
   const email = session.account.email;
+  // Ambil ID asli folder root sekali per sinkronisasi
+  let realRootId = "root";
+  try {
+    const rm = await driveFetch(session, "/drive/v3/files/root?fields=id");
+    if (rm && rm.id) realRootId = rm.id;
+  } catch (e) {}
   const fields = "nextPageToken,files(id,name,mimeType,size,modifiedTime,starred,parents,webViewLink)";
   const out = [];
   for (const trashed of [false, true]) {
@@ -317,7 +325,7 @@ async function syncSession(session) {
       if (pageToken) url += "&pageToken=" + pageToken;
       const data = await driveFetch(session, url);
       (data.files || []).forEach((d) => {
-        const f = normFile(d, email);
+        const f = normFile(d, email, realRootId);
         f.trashed = trashed;
         out.push(f);
       });
