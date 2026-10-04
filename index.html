@@ -13,7 +13,6 @@
       document.documentElement.dataset.theme = t;
     } catch (e) {}
   </script>
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
   <!-- ============ SETUP (tampil bila belum ada Client ID) ============ -->
@@ -35,7 +34,7 @@
       <ol class="setup-steps">
         <li>Buka <a href="https://console.cloud.google.com/apis/library/drive.googleapis.com" target="_blank" rel="noopener">Google Cloud Console</a> → buat project baru → aktifkan <b>Google Drive API</b>.</li>
         <li>Buka <b>APIs &amp; Services → Credentials → Create Credentials → OAuth client ID</b> → tipe <b>Web application</b>.</li>
-        <li>Di <b>Authorized JavaScript origins</b> tambahkan origin situs ini (mis. <code>https://drive-kamu.vercel.app</code>). Untuk coba lokal: <code>http://localhost:3000</code>.</li>
+        <li>Di <b>Authorized JavaScript origins</b> tambahkan origin situs ini (mis. <code>https://drive-beta-three.vercel.app</code>, tanpa garis miring), dan di <b>Authorized redirect URIs</b> tambahkan <code>https://drive-beta-three.vercel.app/</code> (dengan garis miring di akhir).</li>
         <li>Di <b>OAuth consent screen</b> isi nama aplikasi saja (mode Testing cukup untuk dipakai sendiri). Saat login nanti pilih <i>Lanjutan → Buka … (tidak aman)</i> — wajar untuk aplikasi testing milik sendiri.</li>
         <li>Salin <b>Client ID</b>-nya dan tempel di bawah.</li>
       </ol>
