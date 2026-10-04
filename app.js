@@ -548,9 +548,12 @@ function renderBreadcrumb() {
   });
 }
 function starBtn(f) {
-  return `<button class="star-btn ${f.starred ? "starred" : ""}" data-star="${f.id}" title="Bintang" aria-label="Bintang">
+  // NOTE: harus <span>, bukan <button> — button tidak boleh bersarang di dalam
+  // <button class="file-card">; parser browser akan menutup kartu lebih awal
+  // dan isi kartu tercecer sebagai item grid terpisah.
+  return `<span class="star-btn ${f.starred ? "starred" : ""}" data-star="${f.id}" title="Bintang" role="button" tabindex="0" aria-label="Bintang">
     <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 2.7 5.6 6.1.8-4.5 4.2 1.1 6-5.4-3-5.4 3 1.1-6L3.2 9.4l6.1-.8L12 3z"/></svg>
-  </button>`;
+  </span>`;
 }
 function accountPill(f) {
   return `<span class="account-pill"><span class="dot" style="background:${accountColor(f.accountEmail)}"></span>${esc(accountName(f.accountEmail))}</span>`;
@@ -612,8 +615,12 @@ function renderFiles() {
       openItem(el.dataset.id);
     });
   });
-  area.querySelectorAll("[data-star]").forEach((b) =>
-    b.addEventListener("click", (e) => { e.stopPropagation(); toggleStar(b.dataset.star); }));
+  area.querySelectorAll("[data-star]").forEach((b) => {
+    b.addEventListener("click", (e) => { e.stopPropagation(); toggleStar(b.dataset.star); });
+    b.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); toggleStar(b.dataset.star); }
+    });
+  });
 }
 function renderDetail() {
   const panel = $("#detailPanel");
