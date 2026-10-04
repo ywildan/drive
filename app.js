@@ -340,8 +340,14 @@ async function syncSession(session) {
   } catch (e) { /* kuota lama tetap dipakai */ }
 }
 async function syncAll() {
-  for (const s of state.sessions.values()) {
-    try { await syncSession(s); } catch (e) { toast("Gagal sinkron " + s.account.email + ": " + e.message); }
+  if (state.syncing) { toast("Masih menyinkronkan — tunggu sebentar…"); return; }
+  state.syncing = true;
+  try {
+    for (const s of state.sessions.values()) {
+      try { await syncSession(s); } catch (e) { toast("Gagal sinkron " + s.account.email + ": " + e.message); }
+    }
+  } finally {
+    state.syncing = false;
   }
   render();
 }
@@ -970,7 +976,8 @@ function bindEvents() {
     if (state.demoMode) { toast("Mode demo: tidak ada yang disinkronkan."); return; }
     toast("Menyinkronkan…");
     await syncAll();
-    toast("Sinkron selesai.");
+    const n = state.files.filter((f) => !f.trashed).length;
+    toast(`Sinkron selesai: ${n} file/folder termuat.`);
   };
   $("#btnCloseDetail").onclick = () => { state.selectedId = null; renderDetail(); renderFiles(); };
   document.addEventListener("keydown", (e) => {
@@ -1041,6 +1048,9 @@ function syncView() {
 }
 
 (function init() {
+  // Jika dijalankan di dalam iframe (silent-refresh), jangan inisialisasi
+  // aplikasi penuh — cukup biarkan parent membaca URL-nya.
+  if (window.self !== window.top) return;
   bindEvents();
   syncThemeIcon();
   restoreSessions();
