@@ -1,4 +1,5 @@
 /* Dashboard Drive — stylesheet */
+[hidden] { display: none !important; }
 :root {
   color-scheme: light;
   --bg: #f6f7fb;
@@ -299,6 +300,7 @@ body.dragging .drop-hint { display: flex; }
   display: flex; align-items: center; justify-content: center;
   color: var(--ink-faint);
   opacity: 0;
+  cursor: pointer;
   transition: opacity 0.13s, color 0.13s, background 0.13s;
 }
 .file-card:hover .star-btn, .star-btn.starred { opacity: 1; }
