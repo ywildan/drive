@@ -133,73 +133,150 @@ function logActivity(text) {
 }
 
 /* ============================================================
-   AUTH — Google Identity Services
+   AUTH — alur OAuth2 redirect (tanpa popup, tanpa library)
+   Token + sesi disimpan di sessionStorage: tahan reload dalam
+   satu tab, hilang saat tab ditutup. Tidak ada popup yang bisa
+   diblokir browser.
    ============================================================ */
-let tokenClient = null, pendingCb = null;
-function ensureTokenClient() {
-  if (tokenClient) return true;
-  if (!window.google?.accounts?.oauth2) {
-    toast("Library Google belum termuat — periksa koneksi lalu muat ulang halaman.");
-    return false;
-  }
-  tokenClient = google.accounts.oauth2.initTokenClient({
-    client_id: clientId(),
-    scope: DRIVE_SCOPE,
-    callback: (resp) => { const cb = pendingCb; pendingCb = null; cb && cb(resp); },
-  });
-  return true;
-}
-function requestToken(prompt) {
-  return new Promise((resolve, reject) => {
-    if (!ensureTokenClient()) return reject(new Error("GIS belum siap"));
-    pendingCb = (resp) => resp && resp.access_token
-      ? resolve(resp.access_token)
-      : reject(new Error(resp?.error || "Login dibatalkan"));
-    try { tokenClient.requestAccessToken({ prompt: prompt || "" }); }
-    catch (e) { pendingCb = null; reject(e); }
-  });
-}
-async function refreshSession(session) {
+const REDIRECT_URI = () => location.origin + "/";
+
+function persistSessions() {
   try {
-    session.token = await requestToken("");
-    session.invalid = false;
-    return true;
-  } catch (e) {
-    session.invalid = true;
-    renderAccounts();
-    toast("Sesi " + session.account.email + " berakhir — hubungkan ulang akun itu.");
-    return false;
-  }
+    sessionStorage.setItem("dd_sessions", JSON.stringify(
+      [...state.sessions.values()].map((s) => ({ token: s.token, account: s.account }))
+    ));
+  } catch (e) {}
 }
-async function connectAccount() {
+function restoreSessions() {
+  try {
+    const arr = JSON.parse(sessionStorage.getItem("dd_sessions") || "[]");
+    arr.forEach((s, i) => {
+      const email = s && s.account && s.account.email;
+      if (email && !state.sessions.has(email)) {
+        state.sessions.set(email, {
+          token: s.token, invalid: false,
+          account: { ...s.account, color: s.account.color || PALETTE[i % PALETTE.length] },
+        });
+      }
+    });
+  } catch (e) {}
+}
+function connectAccount() {
   if (state.demoMode) { toast("Kamu di mode demo — muat ulang untuk hubungkan akun asli."); return; }
   if (!clientId()) { showSetup(); return; }
+  persistSessions();
+  const st = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  try { sessionStorage.setItem("dd_oauth_state", st); } catch (e) {}
+  const p = new URLSearchParams({
+    client_id: clientId(),
+    redirect_uri: REDIRECT_URI(),
+    response_type: "token",
+    scope: DRIVE_SCOPE,
+    prompt: "select_account",
+    state: st,
+    include_granted_scopes: "true",
+  });
+  // Redirect penuh ke Google — kembali ke halaman ini dengan token
+  location.href = "https://accounts.google.com/o/oauth2/v2/auth?" + p.toString();
+}
+/* Dipanggil saat halaman dimuat: tangani kembalinya dari Google */
+function handleAuthReturn() {
+  if (!location.hash || location.hash.length < 2) return false;
+  const h = new URLSearchParams(location.hash.substring(1));
+  const err = h.get("error"), token = h.get("access_token"), st = h.get("state");
+  if (!err && !token) return false;
+  history.replaceState(null, "", location.pathname + location.search);
+  if (err) {
+    try { sessionStorage.removeItem("dd_oauth_state"); } catch (e) {}
+    toast("Login Google gagal: " + err.replace(/_/g, " "));
+    return true;
+  }
+  let okState = false;
   try {
-    const token = await requestToken("select_account");
-    const tmp = { token };
-    const about = await driveFetch(tmp, "/drive/v3/about?fields=user(displayName,emailAddress,photoLink),storageQuota");
+    okState = !!st && st === sessionStorage.getItem("dd_oauth_state");
+    sessionStorage.removeItem("dd_oauth_state");
+  } catch (e) {}
+  if (!okState) { toast("Sesi login tidak valid — coba hubungkan lagi."); return true; }
+  completeConnect(token);
+  return true;
+}
+async function completeConnect(token) {
+  try {
+    const about = await driveFetch({ token }, "/drive/v3/about?fields=user(displayName,emailAddress,photoLink),storageQuota");
     const email = about.user.emailAddress;
     if (state.sessions.has(email)) {
-      state.sessions.get(email).token = token;
-      state.sessions.get(email).invalid = false;
-      toast("Akun " + email + " sudah terhubung — token diperbarui.");
+      const s = state.sessions.get(email);
+      s.token = token; s.invalid = false;
+      toast("Token " + email + " diperbarui.");
     } else {
-      const session = {
+      state.sessions.set(email, {
         token, invalid: false,
         account: {
           email, name: about.user.displayName || email, photo: about.user.photoLink || "",
           quota: about.storageQuota || {}, color: PALETTE[state.sessions.size % PALETTE.length],
         },
-      };
-      state.sessions.set(email, session);
+      });
       logActivity("Menghubungkan " + email);
-      toast("Mengambil daftar file " + email + "…");
-      await syncSession(session);
+      toast("Terhubung sebagai " + email + ". Mengambil daftar file…");
     }
+    persistSessions();
+    await syncSession(state.sessions.get(email));
+    persistSessions();
     render();
   } catch (e) {
-    if (!/dibatalkan|GIS/i.test(e.message)) toast("Gagal menghubungkan: " + e.message);
+    toast("Gagal menghubungkan: " + e.message);
   }
+}
+/* Refresh token senyap via iframe tersembunyi (tanpa popup) */
+function silentRefresh(session) {
+  return new Promise((resolve) => {
+    const st = Math.random().toString(36).slice(2);
+    const p = new URLSearchParams({
+      client_id: clientId(),
+      redirect_uri: REDIRECT_URI(),
+      response_type: "token",
+      scope: DRIVE_SCOPE,
+      prompt: "none",
+      state: st,
+      include_granted_scopes: "true",
+    });
+    if (session.account && session.account.email) p.set("login_hint", session.account.email);
+    const ifr = document.createElement("iframe");
+    ifr.style.display = "none";
+    let settled = false;
+    const done = (ok) => {
+      if (settled) return; settled = true;
+      clearTimeout(to); ifr.remove(); resolve(ok);
+    };
+    const to = setTimeout(() => done(false), 20000);
+    ifr.onload = () => {
+      try {
+        const u = new URL(ifr.contentWindow.location.href);
+        if (u.origin !== location.origin) return; // masih di halaman Google
+        const h = new URLSearchParams(u.hash.substring(1));
+        if (h.get("state") === st && h.get("access_token")) {
+          session.token = h.get("access_token");
+          session.invalid = false;
+          persistSessions();
+          done(true);
+        } else done(false);
+      } catch (e) { /* halaman Google (cross-origin) — tunggu redirect kembali */ }
+    };
+    ifr.onerror = () => done(false);
+    ifr.src = "https://accounts.google.com/o/oauth2/v2/auth?" + p.toString();
+    document.body.appendChild(ifr);
+  });
+}
+async function refreshSession(session) {
+  try {
+    if (await silentRefresh(session)) return true;
+  } catch (e) {}
+  const email = (session.account && session.account.email) || "akun ini";
+  session.invalid = true;
+  persistSessions();
+  renderAccounts();
+  toast("Sesi " + email + " berakhir — klik Hubungkan untuk login ulang.");
+  return false;
 }
 
 /* ============================================================
@@ -907,10 +984,10 @@ function bindEvents() {
     const v = $("#settingsClientId").value.trim();
     if (!v) { toast("Client ID tidak boleh kosong."); return; }
     localStorage.setItem("dd_client_id", v);
-    tokenClient = null;
     state.sessions.clear();
     state.files = [];
     state.selectedId = null;
+    try { sessionStorage.removeItem("dd_sessions"); } catch (e) {}
     settingsModal.hidden = true;
     toast("Client ID diperbarui. Hubungkan ulang akun-akunmu.");
     logActivity("Mengganti OAuth Client ID");
@@ -934,7 +1011,6 @@ function bindEvents() {
       if (!confirm("Client ID ini terlihat tidak valid. Tetap simpan?")) return;
     }
     localStorage.setItem("dd_client_id", v);
-    tokenClient = null;
     hideSetup();
     toast("Client ID tersimpan. Sekarang hubungkan akun Googlemu.");
     render();
@@ -959,10 +1035,19 @@ function syncView() {
 (function init() {
   bindEvents();
   syncThemeIcon();
+  restoreSessions();
+  handleAuthReturn(); // tangani kembalinya dari login Google (jika ada)
   const existing = $("#clientIdInput");
   if (clientId() && existing) existing.value = clientId();
   if (!clientId()) { showSetup(); return; }  // belum ada Client ID → panduan setup
   hideSetup();
   render();
   renderActivity();
+  if (state.sessions.size && !state.demoMode) {
+    // Muat ulang daftar file untuk sesi yang tersimpan
+    (async () => {
+      toast("Memuat file dari Google Drive…");
+      await syncAll();
+    })();
+  }
 })();
