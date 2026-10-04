@@ -157,6 +157,8 @@
 
       <nav class="breadcrumb" id="breadcrumb"></nav>
 
+      <div class="link-banner" id="linkBanner" hidden></div>
+
       <div class="drop-hint" id="dropHint">Letakkan file di sini untuk mengunggah</div>
       <div class="file-area" id="fileArea"></div>
 
@@ -205,6 +207,13 @@
         <button class="btn-primary" id="btnSaveSettings">Simpan</button>
       </div>
       <p>Mengganti Client ID akan memutuskan semua akun terhubung.</p>
+      <hr style="border:none;border-top:1px solid var(--line);margin:14px 0" />
+      <p style="margin-bottom:6px"><b>Akun utama</b> — daftar akun tertaut disimpan di Drive akun ini, jadi ikut pindah device:</p>
+      <div class="setup-form" style="margin-bottom:8px">
+        <select id="settingsMainAccount" style="flex:1"></select>
+        <button class="btn-primary" id="btnSaveMain">Simpan</button>
+      </div>
+      <p id="mainAccountHint" style="font-size:12.5px;color:var(--ink-faint)"></p>
       <div class="modal-actions" style="justify-content:space-between">
         <button class="btn-danger" id="btnDisconnectAll" style="width:auto">Putuskan semua akun</button>
         <button class="btn-secondary" id="btnCloseSettings">Tutup</button>
