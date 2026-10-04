@@ -664,6 +664,7 @@ function renderBreadcrumb() {
   bc.innerHTML = html;
   bc.querySelectorAll("[data-f]").forEach((b) => b.onclick = () => {
     state.folderId = b.dataset.f; state.search = ""; $("#searchInput").value = "";
+    syncSearchClear();
     state.selectedId = null; render();
   });
 }
@@ -1120,6 +1121,11 @@ function showSetup() { $("#setupView").hidden = false; $("#app").hidden = true; 
 function hideSetup() { $("#setupView").hidden = true; $("#app").hidden = false; }
 
 /* ---------------- Events & init ---------------- */
+/* Tampilkan/sembunyikan tombol × di kolom pencarian */
+function syncSearchClear() {
+  const b = $("#btnClearSearch"), inp = $("#searchInput");
+  if (b && inp) b.hidden = !inp.value;
+}
 /* Menu konteks klik-kanan ala Google Drive */
 function hideCtxMenu() { $("#ctxMenu").hidden = true; }
 function showCtxMenu(x, y, id) {
@@ -1166,7 +1172,14 @@ function bindEvents() {
     document.body.classList.remove("nav-open");
     render();
   });
-  $("#searchInput").addEventListener("input", (e) => { state.search = e.target.value.trim(); renderFiles(); renderBreadcrumb(); });
+  $("#searchInput").addEventListener("input", (e) => { state.search = e.target.value.trim(); syncSearchClear(); renderFiles(); renderBreadcrumb(); });
+  $("#btnClearSearch").onclick = () => {
+    $("#searchInput").value = "";
+    state.search = "";
+    syncSearchClear();
+    renderFiles(); renderBreadcrumb();
+    $("#searchInput").focus();
+  };
   $("#accountFilter").addEventListener("change", (e) => { state.accountFilter = e.target.value; renderFiles(); });
   $("#sortSelect").addEventListener("change", (e) => { state.sort = e.target.value; renderFiles(); });
   $("#viewGrid").onclick = () => { state.view = "grid"; syncView(); renderFiles(); };
