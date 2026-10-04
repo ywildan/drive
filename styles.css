@@ -486,7 +486,8 @@ body.dragging .drop-hint { display: flex; }
 .setup-steps a { color: var(--primary); font-weight: 600; }
 .setup-steps code { background: var(--hover); padding: 1px 7px; border-radius: 6px; font-size: 12.5px; color: var(--ink); }
 .setup-form { display: flex; gap: 10px; }
-.setup-form input {
+.setup-form input,
+.setup-form select {
   flex: 1;
   border: 1.5px solid var(--line);
   border-radius: 12px;
@@ -494,6 +495,9 @@ body.dragging .drop-hint { display: flex; }
   font-size: 13.5px;
   outline: none;
   min-width: 0;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
 }
 .setup-form input:focus { border-color: var(--primary); }
 .setup-note { font-size: 12px; color: var(--ink-faint); line-height: 1.6; margin: 12px 0 0; }
@@ -553,6 +557,26 @@ body.dragging .drop-hint { display: flex; }
 .ctx-item.danger:hover { background: var(--danger-soft); }
 .ctx-item svg { flex: none; opacity: .7; }
 .ctx-sep { height: 1px; background: var(--line); margin: 5px 8px; }
+
+/* ---------- Banner akun tertaut ---------- */
+.link-banner {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  background: var(--primary-soft);
+  border: 1px solid #c9cdf5;
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  font-size: 13.5px; color: var(--ink);
+}
+.link-banner[hidden] { display: none; }
+.link-banner .link-btn { margin-left: auto; }
+.main-badge {
+  display: inline-block;
+  font-size: 10px; font-weight: 800; letter-spacing: .4px;
+  color: var(--primary); background: var(--primary-soft);
+  border: 1px solid #c9cdf5; border-radius: 6px;
+  padding: 1px 6px; margin-left: 6px; vertical-align: 1px;
+}
 
 /* ---------- Sidebar foot ---------- */
 .sidebar-foot {
