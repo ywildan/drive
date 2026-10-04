@@ -985,6 +985,45 @@ function showSetup() { $("#setupView").hidden = false; $("#app").hidden = true; 
 function hideSetup() { $("#setupView").hidden = true; $("#app").hidden = false; }
 
 /* ---------------- Events & init ---------------- */
+/* Menu konteks klik-kanan ala Google Drive */
+function hideCtxMenu() { $("#ctxMenu").hidden = true; }
+function showCtxMenu(x, y, id) {
+  const f = state.files.find((v) => v.id === id);
+  if (!f) return;
+  state.selectedId = id;
+  const others = accountEntries().filter((a) => a.email !== f.accountEmail);
+  const I = (p) => `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+  const items = [];
+  if (f.trashed) {
+    items.push({ label: "Pulihkan", act: "restore", icon: I('<path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5"/>') });
+    items.push({ label: "Hapus permanen", act: "destroy", danger: true, icon: I('<path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m-9 0 1 13h8l1-13"/>') });
+  } else {
+    if (f.isFolder) items.push({ label: "Buka", act: "__openitem", icon: I('<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/>') });
+    else {
+      if (f.webViewLink) items.push({ label: "Buka di Google Drive", act: "open", icon: I('<path d="M14 4h6v6M20 4 11 13M9 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-3"/>') });
+      items.push({ label: "Unduh", act: "download", icon: I('<path d="M12 4v11m0 0 4-4m-4 4-4-4M4 19h16"/>') });
+    }
+    items.push({ label: f.starred ? "Hapus bintang" : "Beri bintang", act: "star", icon: I('<path d="m12 3 2.7 5.6 6.1.8-4.5 4.2 1.1 6-5.4-3-5.4 3 1.1-6L3.2 9.4l6.1-.8L12 3z"/>') });
+    items.push({ label: "Ganti nama", act: "rename", icon: I('<path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17l-1 3z"/>') });
+    if (others.length) items.push({ label: "Pindah ke " + others[0].name, act: "move", icon: I('<path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>') });
+    items.push({ sep: true });
+    items.push({ label: "Hapus", act: "trash", danger: true, icon: I('<path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m-9 0 1 13h8l1-13"/>') });
+  }
+  const menu = $("#ctxMenu");
+  menu.innerHTML = items.map((it, i) => it.sep ? `<div class="ctx-sep"></div>` :
+    `<button class="ctx-item${it.danger ? " danger" : ""}" data-ctx="${i}">${it.icon}<span>${esc(it.label)}</span></button>`).join("");
+  menu.style.left = x + "px"; menu.style.top = y + "px";
+  menu.hidden = false;
+  const r = menu.getBoundingClientRect();
+  menu.style.left = Math.max(8, Math.min(x, innerWidth - r.width - 8)) + "px";
+  menu.style.top = Math.max(8, Math.min(y, innerHeight - r.height - 8)) + "px";
+  menu.querySelectorAll("[data-ctx]").forEach((b) => b.addEventListener("click", () => {
+    const it = items[+b.dataset.ctx];
+    hideCtxMenu();
+    if (it.act === "__openitem") openItem(id); else doAction(it.act, id);
+  }));
+  render();
+}
 function bindEvents() {
   document.querySelectorAll(".nav-item").forEach((b) => b.onclick = () => {
     state.nav = b.dataset.nav; state.selectedId = null;
@@ -1000,6 +1039,17 @@ function bindEvents() {
   $("#btnTheme").onclick = toggleTheme;
   $("#btnUpload").onclick = () => $("#fileInput").click();
   $("#fileInput").addEventListener("change", (e) => { uploadFiles(e.target.files); e.target.value = ""; });
+  // Klik kanan pada file/folder → menu konteks kustom (ganti menu bawaan browser)
+  $("#fileArea").addEventListener("contextmenu", (e) => {
+    const el = e.target.closest("[data-id]");
+    if (!el) return; // area kosong: biarkan menu browser
+    e.preventDefault();
+    showCtxMenu(e.clientX, e.clientY, el.dataset.id);
+  });
+  document.addEventListener("click", (e) => { if (!e.target.closest("#ctxMenu")) hideCtxMenu(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") hideCtxMenu(); });
+  window.addEventListener("resize", hideCtxMenu);
+  window.addEventListener("scroll", hideCtxMenu, true);
   $("#btnHideUpload").onclick = () => $("#uploadDock").hidden = true;
   $("#btnNewFolder").onclick = createFolder;
   $("#btnRefresh").onclick = async () => {
