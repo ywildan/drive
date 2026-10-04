@@ -283,10 +283,19 @@ async function refreshSession(session) {
    DRIVE API
    ============================================================ */
 async function driveFetch(session, path, options = {}, retried = false) {
-  const res = await fetch("https://www.googleapis.com" + path, {
-    ...options,
-    headers: { Authorization: "Bearer " + session.token, "Content-Type": "application/json", ...(options.headers || {}) },
-  });
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 30000);
+  let res;
+  try {
+    res = await fetch("https://www.googleapis.com" + path, {
+      ...options, cache: "no-store", signal: ctrl.signal,
+      headers: { Authorization: "Bearer " + session.token, "Content-Type": "application/json", ...(options.headers || {}) },
+    });
+  } catch (e) {
+    clearTimeout(timer);
+    throw new Error(e && e.name === "AbortError" ? "Koneksi timeout (30 dtk)" : "Jaringan bermasalah: " + (e && e.message ? e.message : e));
+  }
+  clearTimeout(timer);
   if (res.status === 401 && !retried) {
     if (await refreshSession(session)) return driveFetch(session, path, options, true);
     throw new Error("Sesi berakhir");
