@@ -222,7 +222,8 @@ async function completeConnect(token) {
       toast("Terhubung sebagai " + email + ". Mengambil daftar file…");
     }
     persistSessions();
-    state.loadingFiles = true; renderFiles();
+    state.loadingFiles = true;
+    if (!state.files.length) renderFiles();
     try { await syncSession(state.sessions.get(email)); }
     finally { state.loadingFiles = false; }
     persistSessions();
@@ -355,7 +356,9 @@ async function syncAll() {
   if (state.syncing) { toast("Masih menyinkronkan — tunggu sebentar…"); return; }
   state.syncing = true;
   state.loadingFiles = true;
-  renderFiles(); // langsung tampilkan indikator loading
+  // Spinner hanya saat daftar benar-benar kosong; kalau sudah ada data,
+  // biarkan tampil selama refresh (seperti Google Drive)
+  if (!state.files.length) renderFiles();
   try {
     // Semua akun disinkronkan paralel; tiap akun yang selesai langsung tampil
     await Promise.all([...state.sessions.values()].map(async (s) => {
@@ -912,10 +915,17 @@ function uploadFiles(fileList) {
     }
 
     uploadResumable(t.session, file, t.parentId, (p) => { bar.style.width = (p * 100).toFixed(0) + "%"; })
-      .then(async (created) => {
+      .then((created) => {
         done(true, `Tersimpan di ${targetName} ✓`);
         logActivity(`Mengunggah ${file.name} ke ${targetName}`);
-        await syncSession(t.session);
+        // Langsung masukkan ke daftar — tanpa sync ulang seluruh akun
+        state.files.unshift({
+          id: created.id, name: created.name || file.name, isFolder: false,
+          mimeType: created.mimeType || file.type || "application/octet-stream",
+          size: file.size, modified: Date.now(), starred: false, trashed: false,
+          parentId: t.parentId, accountEmail: t.session.account.email,
+          webViewLink: created.webViewLink || "",
+        });
         render();
       })
       .catch((e) => {
@@ -940,13 +950,21 @@ async function createFolder() {
   }
   if (!t.session) { toast("Hubungkan akun Google dulu."); return; }
   try {
-    await driveFetch(t.session, "/drive/v3/files", {
+    const created = await driveFetch(t.session, "/drive/v3/files?fields=id,name,mimeType,modifiedTime,webViewLink", {
       method: "POST",
       body: JSON.stringify({ name: name.trim(), mimeType: FOLDER_MIME, parents: [t.parentId] }),
     });
+    // Langsung masukkan ke daftar — tanpa sync ulang seluruh akun
+    state.files.push({
+      id: created.id, name: created.name || name.trim(),
+      isFolder: true, mimeType: FOLDER_MIME, size: 0,
+      modified: created.modifiedTime ? new Date(created.modifiedTime).getTime() : Date.now(),
+      starred: false, trashed: false,
+      parentId: t.parentId, accountEmail: t.session.account.email,
+      webViewLink: created.webViewLink || "",
+    });
     logActivity(`Membuat folder ${name.trim()} di ${t.session.account.name}`);
     toast(`Folder dibuat di ${t.session.account.name}.`);
-    await syncSession(t.session);
     render();
   } catch (e) { toast("Gagal membuat folder: " + e.message); }
 }
