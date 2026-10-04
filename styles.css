@@ -207,6 +207,14 @@ input, select { font: inherit; }
 .search:focus-within { background: var(--surface); border-color: var(--primary); }
 .search svg { color: var(--ink-faint); flex-shrink: 0; }
 .search input { border: none; outline: none; background: transparent; width: 100%; font-size: 14px; color: var(--ink); }
+.search-clear {
+  display: flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; flex-shrink: 0;
+  border-radius: 50%;
+  color: var(--ink-faint);
+  cursor: pointer;
+}
+.search-clear:hover { background: var(--hover); color: var(--ink); }
 .toolbar-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .select {
   border: 1px solid var(--line);
