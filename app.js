@@ -54,6 +54,8 @@ const state = {
   search: "", accountFilter: "all", sort: "name-asc",
   selectedId: null,
   activity: [],
+  syncing: false,      // kunci anti-tumpuk saat sinkronisasi berjalan
+  loadingFiles: false, // daftar file sedang dimuat → tampilkan indikator loading
 };
 const $ = (s) => document.querySelector(s);
 const clientId = () => localStorage.getItem("dd_client_id") || "";
@@ -220,7 +222,9 @@ async function completeConnect(token) {
       toast("Terhubung sebagai " + email + ". Mengambil daftar file…");
     }
     persistSessions();
-    await syncSession(state.sessions.get(email));
+    state.loadingFiles = true; renderFiles();
+    try { await syncSession(state.sessions.get(email)); }
+    finally { state.loadingFiles = false; }
     persistSessions();
     render();
   } catch (e) {
@@ -318,45 +322,49 @@ function normFile(d, email, realRootId) {
 }
 async function syncSession(session) {
   const email = session.account.email;
-  // Ambil ID asli folder root sekali per sinkronisasi
-  let realRootId = "root";
-  try {
-    const rm = await driveFetch(session, "/drive/v3/files/root?fields=id");
-    if (rm && rm.id) realRootId = rm.id;
-  } catch (e) {}
   const fields = "nextPageToken,files(id,name,mimeType,size,modifiedTime,starred,parents,webViewLink)";
-  const out = [];
-  for (const trashed of [false, true]) {
+  const listQuery = async (trashed) => {
+    const docs = [];
     let pageToken = null;
     do {
       const q = encodeURIComponent(`trashed=${trashed}`);
       let url = `/drive/v3/files?q=${q}&fields=${encodeURIComponent(fields)}&pageSize=1000&orderBy=folder,name`;
       if (pageToken) url += "&pageToken=" + pageToken;
       const data = await driveFetch(session, url);
-      (data.files || []).forEach((d) => {
-        const f = normFile(d, email, realRootId);
-        f.trashed = trashed;
-        out.push(f);
-      });
+      (data.files || []).forEach((d) => docs.push({ d, trashed }));
       pageToken = data.nextPageToken;
     } while (pageToken);
-  }
+    return docs;
+  };
+  // Semua request per akun jalan paralel: id root, list normal, list sampah, kuota
+  const [rootRes, lists, aboutRes] = await Promise.all([
+    driveFetch(session, "/drive/v3/files/root?fields=id").catch(() => null),
+    Promise.all([listQuery(false), listQuery(true)]),
+    driveFetch(session, "/drive/v3/about?fields=storageQuota").catch(() => null),
+  ]);
+  const realRootId = (rootRes && rootRes.id) || "root";
+  const out = lists.flat().map(({ d, trashed }) => {
+    const f = normFile(d, email, realRootId);
+    f.trashed = trashed;
+    return f;
+  });
   state.files = [...state.files.filter((f) => f.accountEmail !== email), ...out];
-  // refresh kuota
-  try {
-    const about = await driveFetch(session, "/drive/v3/about?fields=storageQuota");
-    session.account.quota = about.storageQuota || {};
-  } catch (e) { /* kuota lama tetap dipakai */ }
+  if (aboutRes && aboutRes.storageQuota) session.account.quota = aboutRes.storageQuota;
 }
 async function syncAll() {
   if (state.syncing) { toast("Masih menyinkronkan — tunggu sebentar…"); return; }
   state.syncing = true;
+  state.loadingFiles = true;
+  renderFiles(); // langsung tampilkan indikator loading
   try {
-    for (const s of state.sessions.values()) {
-      try { await syncSession(s); } catch (e) { toast("Gagal sinkron " + s.account.email + ": " + e.message); }
-    }
+    // Semua akun disinkronkan paralel; tiap akun yang selesai langsung tampil
+    await Promise.all([...state.sessions.values()].map(async (s) => {
+      try { await syncSession(s); render(); }
+      catch (e) { toast("Gagal sinkron " + s.account.email + ": " + e.message); }
+    }));
   } finally {
     state.syncing = false;
+    state.loadingFiles = false;
   }
   render();
 }
@@ -554,6 +562,12 @@ function renderFiles() {
   const files = list.filter((f) => !f.isFolder);
 
   if (!list.length) {
+    if (state.loadingFiles && !state.demoMode && state.sessions.size) {
+      area.innerHTML = `<div class="empty">
+        <svg class="spin" viewBox="0 0 24 24" width="52" height="52" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 9 9"/></svg>
+        <p>Memuat file dari Google Drive…</p></div>`;
+      return;
+    }
     const msg = state.nav === "trash" ? "Sampah kosong."
       : state.search ? `Tidak ada hasil untuk "${esc(state.search)}".`
       : (!state.demoMode && !state.sessions.size) ? "Hubungkan akun Google dulu lewat tombol di sidebar."
