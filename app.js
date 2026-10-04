@@ -17,6 +17,7 @@ const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive";
 const GB = 1024 ** 3, MB = 1024 ** 2;
 const PALETTE = ["#4f46e5", "#0d9488", "#db2777", "#ea580c", "#7c3aed", "#0284c7"];
 const FOLDER_MIME = "application/vnd.google-apps.folder";
+const LINKS_FILENAME = "drive-dashboard-links.json"; // daftar akun tertaut di appDataFolder akun utama
 
 /* ---------------- Data contoh (mode demo) ---------------- */
 const DEMO_ACCOUNTS = [
@@ -56,6 +57,7 @@ const state = {
   activity: [],
   syncing: false,      // kunci anti-tumpuk saat sinkronisasi berjalan
   loadingFiles: false, // daftar file sedang dimuat → tampilkan indikator loading
+  mainEmail: null,     // akun utama (diisi dari localStorage saat init)
 };
 const $ = (s) => document.querySelector(s);
 const clientId = () => localStorage.getItem("dd_client_id") || "";
@@ -163,6 +165,110 @@ function restoreSessions() {
     });
   } catch (e) {}
 }
+
+/* ============================================================
+   TAUTAN AKUN — daftar akun gabungan tersimpan di appDataFolder
+   milik akun utama (hanya alamat email, tanpa token — aman).
+   Di device baru: login akun utama → daftar terbaca → hubungkan
+   sisanya otomatis/semi-otomatis.
+   ============================================================ */
+async function findLinksFileId(session) {
+  const data = await driveFetch(session,
+    "/drive/v3/files?spaces=appDataFolder" +
+    "&q=" + encodeURIComponent(`name='${LINKS_FILENAME}' and trashed=false`) +
+    "&fields=files(id)&pageSize=1");
+  return (data.files && data.files[0] && data.files[0].id) || null;
+}
+async function loadLinks(session) {
+  const fileId = await findLinksFileId(session);
+  if (!fileId) return null;
+  const data = await driveFetch(session, `/drive/v3/files/${fileId}?alt=media`);
+  if (!data || data.app !== "drive-dashboard") return null;
+  return data;
+}
+async function saveLinks() {
+  // Simpan daftar akun tertaut ke appDataFolder milik akun utama
+  if (state.demoMode || !state.mainEmail) return;
+  const main = sessionOf(state.mainEmail);
+  if (!main || main.invalid) return;
+  const payload = JSON.stringify({
+    app: "drive-dashboard", v: 1,
+    main: state.mainEmail,
+    linked: [...state.sessions.keys()],
+    updatedAt: Date.now(),
+  });
+  try {
+    let fileId = await findLinksFileId(main).catch(() => null);
+    if (!fileId) {
+      const meta = await driveFetch(main, "/drive/v3/files", {
+        method: "POST",
+        body: JSON.stringify({ name: LINKS_FILENAME, mimeType: "application/json", parents: ["appDataFolder"] }),
+      });
+      fileId = meta.id;
+    }
+    const res = await fetch(`${UPLOAD}/files/${fileId}?uploadType=media`, {
+      method: "PATCH", cache: "no-store",
+      headers: { Authorization: "Bearer " + main.token, "Content-Type": "application/json" },
+      body: payload,
+    });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+  } catch (e) { /* gagal simpan diam-diam; bukan fatal */ }
+}
+/* Dipanggil setiap akun selesai terhubung: cek apakah akun ini adalah
+   akun utama yang punya daftar tautan, lalu tawarkan hubungkan sisanya. */
+async function checkLinkedAccounts(email) {
+  if (state.demoMode) return;
+  const sess = sessionOf(email);
+  if (!sess) return;
+  let links = null;
+  try { links = await loadLinks(sess); } catch (e) { return; }
+  if (!links || !Array.isArray(links.linked)) return;
+  const missing = links.linked.filter((em) => em !== email && !state.sessions.has(em));
+  if (!missing.length) return;
+  showLinkBanner(email, missing);
+}
+function refreshMainAccountSettings() {
+  const sel = $("#settingsMainAccount");
+  const hint = $("#mainAccountHint");
+  if (!sel) return;
+  const entries = accountEntries().filter((a) => !a.invalid);
+  sel.innerHTML = `<option value="">— Pilih akun utama —</option>` +
+    entries.map((a) => `<option value="${esc(a.email)}"${a.email === state.mainEmail ? " selected" : ""}>${esc(a.name)} (${esc(a.email)})</option>`).join("");
+  if (!entries.length) {
+    hint.textContent = "Hubungkan minimal satu akun dulu untuk menetapkan akun utama.";
+  } else if (state.mainEmail) {
+    hint.textContent = `Daftar ${entries.length} akun tertaut tersimpan di appDataFolder ${state.mainEmail} — ikut pindah device. Di device baru, login akun ini lalu hubungkan sisanya.`;
+  } else {
+    hint.textContent = "Pilih satu akun sebagai akun utama agar daftar akun tertaut tersimpan dan ikut pindah device.";
+  }
+}
+function showLinkBanner(mainEmail, missing) {
+  const banner = $("#linkBanner");
+  banner.innerHTML =
+    `<span>Ditemukan <b>${missing.length} akun tertaut</b> dari ${esc(mainEmail)}: ${missing.map(esc).join(", ")}</span>
+     <span class="link-btn" style="display:flex;gap:8px">
+       <button class="btn-primary" id="btnLinkAll" style="width:auto;padding:7px 14px">Hubungkan semua</button>
+       <button class="btn-secondary" id="btnDismissLinks" style="width:auto;padding:7px 14px">Nanti</button>
+     </span>`;
+  banner.hidden = false;
+  $("#btnDismissLinks").onclick = () => { banner.hidden = true; };
+  $("#btnLinkAll").onclick = async () => {
+    banner.hidden = true;
+    toast("Menghubungkan akun tertaut…");
+    const failed = [];
+    for (const em of missing) {
+      if (state.sessions.has(em)) continue;
+      const token = await silentTokenForEmail(em).catch(() => null);
+      if (token) {
+        try { await completeConnect(token); }
+        catch (e) { failed.push(em); }
+      } else failed.push(em);
+    }
+    await saveLinks();
+    if (failed.length) toast("Perlu login manual: " + failed.join(", ") + " — klik + Hubungkan.");
+    else toast("Semua akun tertaut terhubung.");
+  };
+}
 function connectAccount() {
   if (state.demoMode) { toast("Kamu di mode demo — muat ulang untuk hubungkan akun asli."); return; }
   if (!clientId()) { showSetup(); return; }
@@ -228,12 +334,16 @@ async function completeConnect(token) {
     finally { state.loadingFiles = false; }
     persistSessions();
     render();
+    saveLinks();            // perbarui daftar tautan di akun utama
+    checkLinkedAccounts(email); // tawarkan hubungkan akun tertaut (async, tanpa await)
   } catch (e) {
     toast("Gagal menghubungkan: " + e.message);
   }
 }
 /* Refresh token senyap via iframe tersembunyi (tanpa popup) */
-function silentRefresh(session) {
+/* Minta access token senyap via iframe tersembunyi untuk email tertentu.
+   Mengembalikan token, atau null bila butuh interaksi user. */
+function silentTokenForEmail(email) {
   return new Promise((resolve) => {
     const st = Math.random().toString(36).slice(2);
     const p = new URLSearchParams({
@@ -245,32 +355,39 @@ function silentRefresh(session) {
       state: st,
       include_granted_scopes: "true",
     });
-    if (session.account && session.account.email) p.set("login_hint", session.account.email);
+    if (email) p.set("login_hint", email);
     const ifr = document.createElement("iframe");
     ifr.style.display = "none";
     let settled = false;
-    const done = (ok) => {
+    const done = (token) => {
       if (settled) return; settled = true;
-      clearTimeout(to); ifr.remove(); resolve(ok);
+      clearTimeout(to); ifr.remove(); resolve(token);
     };
-    const to = setTimeout(() => done(false), 20000);
+    const to = setTimeout(() => done(null), 20000);
     ifr.onload = () => {
       try {
         const u = new URL(ifr.contentWindow.location.href);
         if (u.origin !== location.origin) return; // masih di halaman Google
         const h = new URLSearchParams(u.hash.substring(1));
-        if (h.get("state") === st && h.get("access_token")) {
-          session.token = h.get("access_token");
-          session.invalid = false;
-          persistSessions();
-          done(true);
-        } else done(false);
+        if (h.get("state") === st && h.get("access_token")) done(h.get("access_token"));
+        else done(null);
       } catch (e) { /* halaman Google (cross-origin) — tunggu redirect kembali */ }
     };
-    ifr.onerror = () => done(false);
+    ifr.onerror = () => done(null);
     ifr.src = "https://accounts.google.com/o/oauth2/v2/auth?" + p.toString();
     document.body.appendChild(ifr);
   });
+}
+async function silentRefresh(session) {
+  const email = session.account && session.account.email;
+  const token = await silentTokenForEmail(email).catch(() => null);
+  if (token) {
+    session.token = token;
+    session.invalid = false;
+    persistSessions();
+    return true;
+  }
+  return false;
 }
 async function refreshSession(session) {
   try {
@@ -497,7 +614,7 @@ function renderAccounts() {
     return `<div class="account" style="${a.invalid ? "opacity:.55" : ""}">
       ${avatar}
       <div class="account-info">
-        <div class="account-name">${esc(a.name)}${a.invalid ? " (sesi berakhir)" : ""}</div>
+        <div class="account-name">${esc(a.name)}${a.email === state.mainEmail ? `<span class="main-badge">UTAMA</span>` : ""}${a.invalid ? " (sesi berakhir)" : ""}</div>
         <div class="account-email">${esc(a.email)}</div>
         <div class="quota"><div style="width:${pct.toFixed(1)}%;background:${a.color}"></div></div>
         <div class="quota-text">${formatBytes(q.used)} dari ${q.total ? formatBytes(q.total) : "—"}</div>
@@ -1087,7 +1204,20 @@ function bindEvents() {
   const settingsModal = $("#settingsModal");
   $("#btnSettings").onclick = () => {
     $("#settingsClientId").value = clientId();
+    refreshMainAccountSettings();
     settingsModal.hidden = false;
+  };
+  $("#btnSaveMain").onclick = async () => {
+    const v = $("#settingsMainAccount").value;
+    if (!v) { toast("Pilih akun utama dulu."); return; }
+    state.mainEmail = v;
+    try { localStorage.setItem("dd_main_email", v); } catch (e) {}
+    toast("Akun utama: " + v + ". Menyimpan daftar tautan…");
+    await saveLinks();
+    toast("Daftar akun tertaut tersimpan di Drive akun utama.");
+    logActivity("Menetapkan akun utama " + v);
+    refreshMainAccountSettings();
+    render();
   };
   $("#btnCloseSettings").onclick = () => settingsModal.hidden = true;
   settingsModal.addEventListener("click", (e) => {
@@ -1110,6 +1240,8 @@ function bindEvents() {
     state.sessions.clear();
     state.files = [];
     state.selectedId = null;
+    hideCtxMenu();
+    const lb = $("#linkBanner"); if (lb) lb.hidden = true;
     settingsModal.hidden = true;
     toast("Semua akun diputuskan.");
     render();
@@ -1152,6 +1284,7 @@ function syncView() {
   bindEvents();
   syncThemeIcon();
   restoreSessions();
+  try { state.mainEmail = localStorage.getItem("dd_main_email") || null; } catch (e) {}
   handleAuthReturn(); // tangani kembalinya dari login Google (jika ada)
   const existing = $("#clientIdInput");
   if (clientId() && existing) existing.value = clientId();
